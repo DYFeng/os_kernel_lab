@@ -1,0 +1,20 @@
+BasedOnStyle: Google
+Standard: c++11
+IndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -4
+NamespaceIndentation: All
+IndentCaseLabels: false
+BinPackArguments: false
+SortUsingDeclarations: false
+BreakBeforeBinaryOperators: NonAssignment
+SpacesBeforeTrailingComments: 1
+DerivePointerAlignment: true
+PointerAlignment: Right
+AlignTrailingComments: true
+SpacesInContainerLiterals: false
+AllowShortFunctionsOnASingleLine: None
+IncludeBlocks: Preserve
+AlwaysBreakAfterDefinitionReturnType: All
+SortIncludes: false
+
