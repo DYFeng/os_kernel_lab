@@ -290,17 +290,46 @@ read_eip(void) {
  * */
 void
 print_stackframe(void) {
-     /* LAB1 YOUR CODE : STEP 1 */
-     /* (1) call read_ebp() to get the value of ebp. the type is (uint32_t);
-      * (2) call read_eip() to get the value of eip. the type is (uint32_t);
-      * (3) from 0 .. STACKFRAME_DEPTH
-      *    (3.1) printf value of ebp, eip
-      *    (3.2) (uint32_t)calling arguments [0..4] = the contents in address (unit32_t)ebp +2 [0..4]
-      *    (3.3) cprintf("\n");
-      *    (3.4) call print_debuginfo(eip-1) to print the C calling function name and line number, etc.
-      *    (3.5) popup a calling stackframe
-      *           NOTICE: the calling funciton's return addr eip  = ss:[ebp+4]
-      *                   the calling funciton's ebp = ss:[ebp]
-      */
+    /* LAB1 YOUR CODE : STEP 1 */
+    /* (1) call read_ebp() to get the value of ebp. the type is (uint32_t);
+     * (2) call read_eip() to get the value of eip. the type is (uint32_t);
+     * (3) from 0 .. STACKFRAME_DEPTH
+     *    (3.1) printf value of ebp, eip
+     *    (3.2) (uint32_t)calling arguments [0..4] = the contents in address (unit32_t)ebp +2 [0..4]
+     *    (3.3) cprintf("\n");
+     *    (3.4) call print_debuginfo(eip-1) to print the C calling function name and line number, etc.
+     *    (3.5) popup a calling stackframe
+     *           NOTICE: the calling funciton's return addr eip  = ss:[ebp+4]
+     *                   the calling funciton's ebp = ss:[ebp]
+     */
+
+    // (1)
+    uint32_t *ebp = (uint32_t *)read_ebp();
+
+    // (2)
+    uint32_t *eip = (uint32_t *)read_eip();
+
+    for (size_t i = 0; ebp != 0 && i < STACKFRAME_DEPTH; ++i) {
+        // (3.1)
+        cprintf("ebp:0x%08x eip:0x%08x ", ebp, eip);
+
+        // (3.2)
+        // 这里应该是题目为了简化问题，固定了每个函数都只有4个参数
+        // 还需要注意，每个参数是uint32_t类型的，所以是4字节，内存地址占了4个位置
+        // 我们先把ebp指针是uint32_t *类型的，所以只要+1，就可以一次性跨4个字节
+        uint32_t *args = ebp + 2;
+        cprintf("args:0x%08x 0x%08x 0x%08x 0x%08x", args[0], args[1], args[2], args[3]);
+        // (3.3)
+        cprintf("\n");
+
+        // (3.4)
+        print_debuginfo((uintptr_t)(eip - 1));
+
+        // (3.5)
+        // 他上面的NOTE有点误导人，他只是想让你打印堆栈链而已
+        // 我还以为修改eip寄存器等，如果修改了eip寄存器，我这循环代码就执行不了
+        eip = (uint32_t *)*(ebp + 1);
+        ebp = (uint32_t *)*(ebp);
+    }
 }
 
