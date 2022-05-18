@@ -14,6 +14,8 @@ toobj = $(addprefix $(OBJDIR)$(SLASH)$(if $(2),$(2)$(SLASH)),\
 # get .d dependency files: (#files[, packet])
 todep = $(patsubst %.o,%.d,$(call toobj,$(1),$(2)))
 
+# 生成目标$(1)在$(BINDIR)目录下的路径，$(BINDIR)/$(1)
+# 例如 $(call totarget,bootblock)，就是返回bootblock在bin目录下路径是多少
 totarget = $(addprefix $(BINDIR)$(SLASH),$(1))
 
 # change $(name) to $(OBJPREFIX)$(name): (#names)

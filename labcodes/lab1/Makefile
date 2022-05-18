@@ -85,8 +85,10 @@ ALLOBJS	:=
 ALLDEPS	:=
 TARGETS	:=
 
+# Makefile也可以引入其他模块，其实功能跟cmake真的有很多重合
 include tools/function.mk
 
+# 获取$(1)目录下所有.c文件
 listf_cc = $(call listf,$(1),$(CTYPE))
 
 # for cc
@@ -104,6 +106,7 @@ outfile = $(call cgtype,$(call toobj,$(1)),o,out)
 symfile = $(call cgtype,$(call toobj,$(1)),o,sym)
 
 # for match pattern
+# $? 指代比目标更新的所有前置条件，之间以空格分隔。比如，规则为 t: p1 p2，其中 p2 的时间戳比 t 新，$?就指代p2
 match = $(shell echo $(2) | $(AWK) '{for(i=1;i<=NF;i++){if(match("$(1)","^"$$(i)"$$")){exit 1;}}}'; echo $$?)
 
 # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -154,16 +157,26 @@ $(call create_target,kernel)
 # -------------------------------------------------------------------
 
 # create bootblock
+# boot/bootmain.c
 bootfiles = $(call listf_cc,boot)
 $(foreach f,$(bootfiles),$(call cc_compile,$(f),$(CC),$(CFLAGS) -Os -nostdinc))
 
 bootblock = $(call totarget,bootblock)
 
+# 管道的作用
+# targets : normal-prerequisites | order-only-prerequisites
+# The targets will not be updated if the order-only-prerequisites is changed.
 $(bootblock): $(call toobj,$(bootfiles)) | $(call totarget,sign)
 	@echo + ld $@
+	@# $^ 指代所有前置条件（有多个），之间以空格分隔。比如，规则为 t: p1 p2，那么 $^ 就指代 p1 p2 。
+	@# -N: Do not page align data, do not make text readonly
+	@# -e start: 程序入口为start符号处
+	@# -Ttext 0x7C00: 设置.text段的地址为0x7C00
 	$(V)$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 $^ -o $(call toobj,bootblock)
+	@# 这个asm的生成只是为了调试用，不参与编译
 	@$(OBJDUMP) -S $(call objfile,bootblock) > $(call asmfile,bootblock)
 	@$(OBJCOPY) -S -O binary $(call objfile,bootblock) $(call outfile,bootblock)
+	@# 此时obj/bootblock.out还不是512标准大小的引导扇区，所以需要填充成512大小，并且引导扇区末尾还有结束标志0x55 0xaa
 	@$(call totarget,sign) $(call outfile,bootblock) $(bootblock)
 
 $(call create_target,bootblock)
@@ -177,11 +190,19 @@ $(call create_target_host,sign,sign)
 # -------------------------------------------------------------------
 
 # create ucore.img
+# := 表示在定义时展开，而不是执行时
 UCOREIMG	:= $(call totarget,ucore.img)
 
+# $@ 代表目标，例如这里就代表$(UCOREIMG)
 $(UCOREIMG): $(kernel) $(bootblock)
+	@# 由于在构建过程中，需要了解当前在执行哪条命令，所以通常只在注释和纯显示的echo命令前面加上@
+	# 像这个注释，前面没有@，在编译的过程中就会输出来，因为他每一行都当做命令输入到shell里面了
+	@# 创造一个有10000个block的文件，一个block是512-byte，所以一共是5120000 byte
 	$(V)dd if=/dev/zero of=$@ count=10000
+	@# conv=notrunc 表示不要把文件归零然后重新写，而是在"文件身上"直接刻上
+	@# 所以这个是把 bootblock 直接覆盖到文件的第一个block
 	$(V)dd if=$(bootblock) of=$@ conv=notrunc
+	@# 这个是把 kernel，从第二个block开始覆盖到文件
 	$(V)dd if=$(kernel) of=$@ seek=1 conv=notrunc
 
 $(call create_target,ucore.img)
@@ -207,7 +228,9 @@ TARGETS: $(TARGETS)
 
 .DEFAULT_GOAL := TARGETS
 
+# .PHONY用于声明这些都是”伪目标”，make就不会去检查是否存在一个叫做qemu/debug/etc..的文件，而是每次运行都执行对应的命令。
 .PHONY: qemu qemu-nox debug debug-nox
+# $< 表示第一个prerequisite，例如这里指代 $(UCOREIMG)
 qemu-mon: $(UCOREIMG)
 	$(V)$(QEMU)  -no-reboot -monitor stdio -hda $< -serial null
 qemu: $(UCOREIMG)
@@ -248,6 +271,7 @@ touch:
 	$(V)$(foreach f,$(TOUCH_FILES),$(TOUCH) $(f))
 
 print-%:
+	@# 由于在构建过程中，需要了解当前在执行哪条命令，所以通常只在注释和纯显示的echo命令前面加上@
 	@echo $($(shell echo $(patsubst print-%,%,$@) | $(TR) [a-z] [A-Z]))
 
 .PHONY: clean dist-clean handin packall tags
