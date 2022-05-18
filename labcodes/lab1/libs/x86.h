@@ -35,15 +35,28 @@ static inline void sti(void) __attribute__((always_inline));
 static inline void cli(void) __attribute__((always_inline));
 static inline void ltr(uint16_t sel) __attribute__((always_inline));
 
+/**
+ * @brief 返回内存位置（寄存器） @port 一个byte的数据
+ * @param port
+ * @return
+ */
 static inline uint8_t
 inb(uint16_t port) {
     uint8_t data;
+    // inb=in byte，读一个byte
     asm volatile ("inb %1, %0" : "=a" (data) : "d" (port));
     return data;
 }
 
+/**
+ * @brief 从内存位置（寄存器） @port
+ * @param port
+ * @param addr
+ * @param cnt
+ */
 static inline void
 insl(uint32_t port, void *addr, int cnt) {
+    // 为什么是这么写，详细看 https://blog.csdn.net/sgy1993/article/details/89225075
     asm volatile (
             "cld;"
             "repne; insl;"
