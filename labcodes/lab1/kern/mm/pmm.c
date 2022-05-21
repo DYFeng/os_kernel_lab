@@ -40,7 +40,9 @@ static struct taskstate ts = {0};
  *   - 0x28:  defined for tss, initialized in gdt_init
  * */
 static struct segdesc gdt[] = {
+    // 按规定第一段是空的段描述符，也就是全部置0
     SEG_NULL,
+    // 留意区分boot/asm.h里面的SEG_ASM
     [SEG_KTEXT] = SEG(STA_X | STA_R, 0x0, 0xFFFFFFFF, DPL_KERNEL),
     [SEG_KDATA] = SEG(STA_W, 0x0, 0xFFFFFFFF, DPL_KERNEL),
     [SEG_UTEXT] = SEG(STA_X | STA_R, 0x0, 0xFFFFFFFF, DPL_USER),
