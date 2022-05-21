@@ -48,7 +48,8 @@ ifndef  USELLVM
 HOSTCC		:= gcc
 HOSTCFLAGS	:= -g -Wall -O2
 CC		:= $(GCCPREFIX)gcc
-CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc $(DEFS)
+# 在ubuntu20.04下，不加-fno-PIC -fno-PIE 会崩溃
+CFLAGS	:= -fno-PIC -fno-PIE -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc $(DEFS)
 CFLAGS	+= $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 else
 HOSTCC		:= clang
@@ -225,6 +226,9 @@ debug-nox: $(UCOREIMG)
 	$(V)$(QEMU) -S -s -serial mon:stdio -hda $< -nographic &
 	$(V)sleep 2
 	$(V)$(TERMINAL) -e "gdb -q -x tools/gdbinit"
+debug-clion: $(UCOREIMG)
+	#$(V)/usr/local/bin/cliclick -r c:1086,22
+	$(V)$(QEMU) -S -s -hda $< -monitor stdio
 
 .PHONY: grade touch
 

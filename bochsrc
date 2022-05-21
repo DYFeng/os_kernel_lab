@@ -1,0 +1,6 @@
+config_interface: textconfig
+megs: 32
+ata0-master: type=disk, path="/home/gauss/Projects/os_kernel_lab/labcodes/lab2/bin/ucore.img"
+boot: disk
+#gdbstub: enabled=1, port=1234, text_base=0, data_base=0, bss_base=0
+#display_library: x, options="gui_debug"

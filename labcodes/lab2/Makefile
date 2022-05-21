@@ -48,7 +48,8 @@ ifndef  USELLVM
 HOSTCC		:= gcc
 HOSTCFLAGS	:= -g -Wall -O2
 CC		:= $(GCCPREFIX)gcc
-CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc $(DEFS)
+# 在ubuntu20.04下，不加-fno-PIC -fno-PIE 会崩溃
+CFLAGS	:= -fno-PIC -fno-PIE -fno-builtin -Wall -ggdb -gdwarf-2 -m32  -nostdinc $(DEFS)
 CFLAGS	+= $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 else
 HOSTCC		:= clang
