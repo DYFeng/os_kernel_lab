@@ -10,6 +10,8 @@ __alltraps:
     pushl %es
     pushl %fs
     pushl %gs
+    # pushal=push all long，Push AX, CX, DX, BX, original SP, BP, SI, and DI
+    # 因为是long，每个寄存器占4byte，一共8个寄存器，也就是有32byte压棧
     pushal
 
     # load GD_KDATA into %ds and %es to set up data segments for kernel

@@ -22,30 +22,48 @@ static void print_ticks() {
 /* *
  * Interrupt descriptor table:
  *
+ * IDT表，里面有很多项，每一项是8byte的 @gatedesc
  * Must be built at run time because shifted function addresses can't
  * be represented in relocation records.
  * */
 static struct gatedesc idt[256] = {{0}};
 
-static struct pseudodesc idt_pd = {
-    sizeof(idt) - 1, (uintptr_t)idt
-};
+/* *
+ * 用于描述IDT表的IDTR，记录了IDT表的大小和位置，这个结构是要直接告诉cpu的，这样子cpu就知道idt在哪，有多大。
+ * 下面size-1的原理和gdt是一样的
+ * struct pseudodesc { limit: 2byte, base: 4byte }
+ * limit是2byte，最大为65535，但是跟8除不尽，所以65535其实表示IDT表大小为65535+1=65536，那就跟8除得尽了
+ */
+static struct pseudodesc idt_pd = {sizeof(idt) - 1, (uintptr_t)idt};
 
 /* idt_init - initialize IDT to each of the entry points in kern/trap/vectors.S */
 void
 idt_init(void) {
-     /* LAB1 YOUR CODE : STEP 2 */
-     /* (1) Where are the entry addrs of each Interrupt Service Routine (ISR)?
-      *     All ISR's entry addrs are stored in __vectors. where is uintptr_t __vectors[] ?
-      *     __vectors[] is in kern/trap/vector.S which is produced by tools/vector.c
-      *     (try "make" command in lab1, then you will find vector.S in kern/trap DIR)
-      *     You can use  "extern uintptr_t __vectors[];" to define this extern variable which will be used later.
-      * (2) Now you should setup the entries of ISR in Interrupt Description Table (IDT).
-      *     Can you see idt[256] in this file? Yes, it's IDT! you can use SETGATE macro to setup each item of IDT
-      * (3) After setup the contents of IDT, you will let CPU know where is the IDT by using 'lidt' instruction.
-      *     You don't know the meaning of this instruction? just google it! and check the libs/x86.h to know more.
-      *     Notice: the argument of lidt is idt_pd. try to find it!
-      */
+    /* LAB1 YOUR CODE : STEP 2 */
+    /* (1) Where are the entry addrs of each Interrupt Service Routine (ISR)?
+     *     All ISR's entry addrs are stored in __vectors. where is uintptr_t __vectors[] ?
+     *     __vectors[] is in kern/trap/vector.S which is produced by tools/vector.c
+     *     (try "make" command in lab1, then you will find vector.S in kern/trap DIR)
+     *     You can use  "extern uintptr_t __vectors[];" to define this extern variable which will be used later.
+     * (2) Now you should setup the entries of ISR in Interrupt Description Table (IDT).
+     *     Can you see idt[256] in this file? Yes, it's IDT! you can use SETGATE macro to setup each item of IDT
+     * (3) After setup the contents of IDT, you will let CPU know where is the IDT by using 'lidt' instruction.
+     *     You don't know the meaning of this instruction? just google it! and check the libs/x86.h to know more.
+     *     Notice: the argument of lidt is idt_pd. try to find it!
+     */
+
+    // (1)
+    extern uintptr_t __vectors[];
+
+    // (2)
+    for (size_t i = 0; i < sizeof(idt) / sizeof(struct gatedesc); ++i) {
+        SETGATE(idt[i], 0, GD_KTEXT, __vectors[i], DPL_KERNEL);
+    }
+    // challenge虽然说是系统调用，但不是用软中断的方式，而是直接像硬件中断那样触发
+    SETGATE(idt[T_SWITCH_TOK], 0, GD_KTEXT, __vectors[T_SWITCH_TOK], DPL_USER);
+
+    // (3)
+    lidt(&idt_pd);
 }
 
 static const char *
@@ -143,10 +161,18 @@ trap_dispatch(struct trapframe *tf) {
     case IRQ_OFFSET + IRQ_TIMER:
         /* LAB1 YOUR CODE : STEP 3 */
         /* handle the timer interrupt */
-        /* (1) After a timer interrupt, you should record this event using a global variable (increase it), such as ticks in kern/driver/clock.c
+        /* (1) After a timer interrupt, you should record this event using a global variable (increase it), such as
+         * ticks in kern/driver/clock.c
          * (2) Every TICK_NUM cycle, you can print some info using a funciton, such as print_ticks().
          * (3) Too Simple? Yes, I think so!
          */
+
+        // (1)
+        ticks++;
+
+        // (2)
+        if (ticks % TICK_NUM == 0) print_ticks();
+
         break;
     case IRQ_OFFSET + IRQ_COM1:
         c = cons_getc();

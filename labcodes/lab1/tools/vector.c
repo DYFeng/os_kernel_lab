@@ -1,5 +1,9 @@
 #include <stdio.h>
 
+/**
+ * @brief 简单的一段代码用于生成kern/trap/vectors.S，其实用pythob就行
+ * @return
+ */
 int
 main(void) {
     printf(".text\n");

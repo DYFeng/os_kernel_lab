@@ -48,6 +48,7 @@
 #define T_SWITCH_TOK                121    // user/kernel switch
 
 /* registers as pushed by pushal */
+// 参数的排列，是内存从低到高排列的，注意压棧时是从高到低压
 struct pushregs {
     uint32_t reg_edi;
     uint32_t reg_esi;
@@ -61,6 +62,8 @@ struct pushregs {
 
 struct trapframe {
     struct pushregs tf_regs;
+    // 为什么下面要有这些padding呢？
+    // 那是因为我们压棧的时候把寄存器数据当32位的来压（pushl），但其实这些都是16位寄存器，所以有还有16bit的空挡
     uint16_t tf_gs;
     uint16_t tf_padding0;
     uint16_t tf_fs;
@@ -71,12 +74,14 @@ struct trapframe {
     uint16_t tf_padding3;
     uint32_t tf_trapno;
     /* below here defined by x86 hardware */
+    // 下面的是cpu硬件自动压棧的
     uint32_t tf_err;
     uintptr_t tf_eip;
     uint16_t tf_cs;
     uint16_t tf_padding4;
     uint32_t tf_eflags;
     /* below here only when crossing rings, such as from user to kernel */
+    // 如果是跨特权级时，cpu还会压多两个值，之前的棧顶和棧段
     uintptr_t tf_esp;
     uint16_t tf_ss;
     uint16_t tf_padding5;
