@@ -53,9 +53,9 @@
  * */
 
 /* All physical memory mapped at this address */
-#define KERNBASE            0xC0000000
-#define KMEMSIZE            0x38000000                  // the maximum amount of physical memory
-#define KERNTOP             (KERNBASE + KMEMSIZE)
+#define KERNBASE 0xC0000000
+#define KMEMSIZE 0x38000000 // the maximum amount of physical memory, 896MB
+#define KERNTOP (KERNBASE + KMEMSIZE)
 
 /* *
  * Virtual page table. Entry PDX[VPT] in the PD (Page Directory) contains
@@ -85,10 +85,19 @@ typedef uintptr_t pde_t;
 struct e820map {
     int nr_map;
     struct {
-        uint64_t addr;
-        uint64_t size;
-        uint32_t type;
-    } __attribute__((packed)) map[E820MAX];
+        uint64_t addr; // 系统内存块基地址
+        uint64_t size; // 系统内存大小(单位为byte)
+        uint32_t type; // 内存类型
+                       // 01h    memory, available to OS
+                       // 02h    reserved, not available (e.g. system ROM, memory-mapped device)
+                       // 03h    ACPI Reclaim Memory (usable by OS after reading ACPI tables)
+                       // 04h    ACPI NVS Memory (OS is required to save this memory between NVS sessions)
+                       // other  not defined yet -- treat as Reserved
+
+        // __attribute__ ((packed)) 的作用就是告诉编译器取消结构在编译过程中的优化对齐
+        // 按照实际占用字节数进行对齐，是GCC特有的语法
+        // 因为之前BIOS内存探测后放到内存的结构就是没有对齐的，所以我们也不应该对齐
+    } __attribute__((packed)) map[E820MAX]; // 这是定义了一个E820MAX=20大的数组
 };
 
 /* *
@@ -104,8 +113,12 @@ struct Page {
 };
 
 /* Flags describing the status of a page frame */
-#define PG_reserved                 0       // if this bit=1: the Page is reserved for kernel, cannot be used in alloc/free_pages; otherwise, this bit=0 
-#define PG_property                 1       // if this bit=1: the Page is the head page of a free memory block(contains some continuous_addrress pages), and can be used in alloc_pages; if this bit=0: if the Page is the the head page of a free memory block, then this Page and the memory block is alloced. Or this Page isn't the head page.
+#define PG_reserved \
+    0 // if this bit=1: the Page is reserved for kernel, cannot be used in alloc/free_pages; otherwise, this bit=0
+#define PG_property \
+    1 // if this bit=1: the Page is the head page of a free memory block(contains some continuous_addrress pages), and
+      // can be used in alloc_pages; if this bit=0: if the Page is the the head page of a free memory block, then this
+      // Page and the memory block is alloced. Or this Page isn't the head page.
 
 #define SetPageReserved(page)       set_bit(PG_reserved, &((page)->flags))
 #define ClearPageReserved(page)     clear_bit(PG_reserved, &((page)->flags))
@@ -115,8 +128,7 @@ struct Page {
 #define PageProperty(page)          test_bit(PG_property, &((page)->flags))
 
 // convert list entry to page
-#define le2page(le, member)                 \
-    to_struct((le), struct Page, member)
+#define le2page(le, member) to_struct((le), struct Page, member)
 
 /* free_area_t - maintains a doubly linked list to record free (unused) pages */
 typedef struct {

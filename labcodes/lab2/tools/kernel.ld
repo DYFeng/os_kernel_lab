@@ -7,6 +7,9 @@ ENTRY(kern_entry)
 
 SECTIONS {
     /* Load the kernel at this address: "." means the current address */
+    /* 什么叫current address，你可以理解为ld文件就是负责二进制文件的生成，目前这一行的位置，要求是在0xC0100000地址上
+        这个地址并不是二进制文件里的位置，而是以后加载到内存期望所在的位置
+     */
     . = 0xC0100000;
 
     .text : {

@@ -16,7 +16,12 @@ static void lab1_switch_test(void);
 
 int
 kern_init(void) {
+    // edata和end这两个变量，不在C和汇编里，而是在ld里面
+    // edata: .data段最后一个地址的下一个地址，同时也是.bss段的第一个地址
+    // end: .bss段最后一个地址的下一个地址
     extern char edata[], end[];
+
+    // 把.bss段全部置0
     memset(edata, 0, end - edata);
 
     cons_init();                // init the console

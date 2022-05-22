@@ -84,6 +84,11 @@ page2pa(struct Page *page) {
     return page2ppn(page) << PGSHIFT;
 }
 
+/**
+ * @brief 返回物理地址所在的幀
+ * @param pa physical address物理地址
+ * @return
+ */
 static inline struct Page *
 pa2page(uintptr_t pa) {
     if (PPN(pa) >= npage) {

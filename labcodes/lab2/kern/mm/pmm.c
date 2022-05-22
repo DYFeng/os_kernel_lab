@@ -188,6 +188,8 @@ nr_free_pages(void) {
 /* pmm_init - initialize the physical memory management */
 static void
 page_init(void) {
+    // 线性地址0x8000 + KERNBASE对应着物理地址0x8000
+    // e820map 储存着BIOS探索的内存布局
     struct e820map *memmap = (struct e820map *)(0x8000 + KERNBASE);
     uint64_t maxpa = 0;
 
@@ -197,12 +199,16 @@ page_init(void) {
         uint64_t begin = memmap->map[i].addr, end = begin + memmap->map[i].size;
         cprintf("  memory: %08llx, [%08llx, %08llx], type = %d.\n",
                 memmap->map[i].size, begin, end - 1, memmap->map[i].type);
+        // type==01h才是系统可用的
+        // 然后检查这块内存的位置，起始位置需要小于KMEMSIZE，因为内核在物理内存地址为0~KMEMSIZE，起始位置太高了就用不了
+        // 终止位置取一个最大的
         if (memmap->map[i].type == E820_ARM) {
             if (maxpa < end && begin < KMEMSIZE) {
                 maxpa = end;
             }
         }
     }
+    // 如果实际内存大于896MB，我们也只用896MB，因为这个实验里，人为定义了物理内存的前896MB作为内核使用
     if (maxpa > KMEMSIZE) {
         maxpa = KMEMSIZE;
     }
@@ -210,15 +216,19 @@ page_init(void) {
     extern char end[];
 
     npage = maxpa / PGSIZE;
+    // BSS段结束处再往上对齐一下，作为“管理空闲空间”的区域，装着所有的npage个Page
     pages = (struct Page *)ROUNDUP((void *)end, PGSIZE);
 
+    // 先把所有的页设置为“保留”
     for (i = 0; i < npage; i ++) {
         SetPageReserved(pages + i);
     }
 
+    // 空闲内存空间的起始地址，这以上的空间可以被分配和释放，以下的空间是内核和页表项
     uintptr_t freemem = PADDR((uintptr_t)pages + sizeof(struct Page) * npage);
 
     for (i = 0; i < memmap->nr_map; i ++) {
+        // 遍历每一个可用的物理内存块（BIOS给我的，每一块都是物理连续的）
         uint64_t begin = memmap->map[i].addr, end = begin + memmap->map[i].size;
         if (memmap->map[i].type == E820_ARM) {
             if (begin < freemem) {
@@ -289,13 +299,17 @@ pmm_init(void) {
     //First we should init a physical memory manager(pmm) based on the framework.
     //Then pmm can alloc/free the physical memory. 
     //Now the first_fit/best_fit/worst_fit/buddy_system pmm are available.
+    // 1. 初始化物理内存页管理器框架pmm_manager
     init_pmm_manager();
 
     // detect physical memory space, reserve already used memory,
     // then use pmm->init_memmap to create free page list
+    // 2. 建立空闲的page链表，这样就可以分配以页（4KB）为单位的空闲内存了
+    // 他把整个可用的物理内存的幀都建立了对应的页
     page_init();
 
     //use pmm->check to verify the correctness of the alloc/free function in a pmm
+    // 3. 检查物理内存页分配算法
     check_alloc_page();
 
     // create boot_pgdir, an initial page directory(Page Directory Table, PDT)
@@ -320,20 +334,25 @@ pmm_init(void) {
     //virtual_addr 3G~3G+4M = linear_addr 0~4M = linear_addr 3G~3G+4M = phy_addr 0~4M     
     boot_pgdir[0] = boot_pgdir[PDX(KERNBASE)];
 
+    // 使能分页机制
     enable_paging();
 
     //reload gdt(third time,the last time) to map all physical memory
     //virtual_addr 0~4G=liear_addr 0~4G
     //then set kernel stack(ss:esp) in TSS, setup TSS in gdt, load TSS
+    // 重新设置全局段描述符表
     gdt_init();
 
     //disable the map of virtual_addr 0~4M
+    // 取消临时二级页表
     boot_pgdir[0] = 0;
 
     //now the basic virtual memory map(see memalyout.h) is established.
     //check the correctness of the basic virtual memory map.
+    // 检查页表建立是否正确
     check_boot_pgdir();
 
+    // 通过自映射机制完成页表的打印输出
     print_pgdir();
 
 }

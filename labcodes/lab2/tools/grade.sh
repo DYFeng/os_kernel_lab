@@ -126,7 +126,7 @@ run_qemu() {
     # wait until $brkfun is reached or $timeout expires, then kill QEMU
     qemuextra=
     if [ "$brkfun" ]; then
-        qemuextra="-S $qemugdb"
+        qemuextra="$qemugdb"
     fi
 
     if [ -z "$timeout" ] || [ $timeout -le 0 ]; then
@@ -141,7 +141,7 @@ run_qemu() {
     pid=$!
 
     # wait for QEMU to start
-    sleep 1
+    sleep 5
 
     if [ -n "$brkfun" ]; then
         # find the address of the kernel $brkfun function

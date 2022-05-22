@@ -104,6 +104,10 @@ bootmain(void) {
 
     // call the entry point from the ELF header
     // note: does not return
+    // ELFHDR->e_entry的值是0xC0100000，但其实这个值是开了页模式后的逻辑地址
+    // 目前只是开了段模式，所以我们是不可能加载到0xC0100000内存位置（实际内存可能没这么大啊）
+    // 我们的设计是，把他加载到0x00100000（目前逻辑地址=线性地址=实际内存位置），所以才有`& 0xFFFFFF`，取低24位
+    // 跟entry.S里面的宏`REALLOC`作用是一样的
     ((void (*)(void))(ELFHDR->e_entry & 0xFFFFFF))();
 
 bad:

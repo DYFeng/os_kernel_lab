@@ -8,6 +8,7 @@ ENTRY(kern_entry)
 SECTIONS {
     /* Load the kernel at this address: "." means the current address */
     /* the phy addr of ucore (before ucore enable paging mechanism*/
+    /* 跟kernel.ld就这么一点不一样而已，其他都是一样的 */
     . = 0x0100000;
 
     .text : {
