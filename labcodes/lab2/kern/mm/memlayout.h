@@ -105,10 +105,32 @@ struct e820map {
  * physical page. In kern/mm/pmm.h, you can find lots of useful functions
  * that convert Page to other data types, such as phyical address.
  * */
+/**
+ * @brief 表示一物理幀
+ */
 struct Page {
+    // 可能会有多个线性地址的页对应这一物理幀
     int ref;                        // page frame's reference counter
+
+    // 我们要注意第0bit和第1bit，需要两个属性才能描述一幀
+    // 第0bit（reserved位）:
+    // 第0bit等于1，说明是被保留的幀，不能放到空闲页链表中，即这样的幀不是空闲幀，不能动态分配与释放。
+    // 比如目前内核代码占用的空间就属于这样“被保留”的幀。
+    // 第0bit等于1，则是可以被分配和释放的
+    //
+    // 第1bit（property位）
+    // 第1bit==1：此Page是Head Page（头一页），并且这个内存块可用
+    // 第1bit==0：
+    //  - 此Page不是Head Page（头一页）
+    //  - 此Page是Head Page（头一页），说明这个内存块已经被分配出去了，不能被再二次分配。注意只是不能被分配，但是可以被引用
     uint32_t flags;                 // array of flags that describe the status of the page frame
+
+    // 这个属性只会被一个Page用到。这个Page比较特殊，是这个连续内存空闲块地址最小的一页（即头一页， Head Page）。
+    // 连续内存空闲块利用这个页的成员变量property来记录在此块内的空闲页的个数。
+    // 这里取的名字property也不是很直观，原因与上面类似，在不同的页分配算法中，property有不同的含义。
     unsigned int property;          // the num of free block, used in first fit pm manager
+
+    // 需要依附的链表节点
     list_entry_t page_link;         // free list link
 };
 
@@ -120,6 +142,7 @@ struct Page {
       // can be used in alloc_pages; if this bit=0: if the Page is the the head page of a free memory block, then this
       // Page and the memory block is alloced. Or this Page isn't the head page.
 
+// 注意了，下面一堆宏都是设置Page.flags的，并不是设置Page.property的
 #define SetPageReserved(page)       set_bit(PG_reserved, &((page)->flags))
 #define ClearPageReserved(page)     clear_bit(PG_reserved, &((page)->flags))
 #define PageReserved(page)          test_bit(PG_reserved, &((page)->flags))
@@ -133,6 +156,7 @@ struct Page {
 /* free_area_t - maintains a doubly linked list to record free (unused) pages */
 typedef struct {
     list_entry_t free_list;         // the list header
+    // 注意这个并不是记录链表有多少个元素，而是记录有多少页在链表里，可能一个链表节点就代表了很多页
     unsigned int nr_free;           // # of free pages in this free list
 } free_area_t;
 
