@@ -50,6 +50,9 @@ void print_pgdir(void);
  * where the machine's maximum 256MB of physical memory is mapped and returns the
  * corresponding physical address.  It panics if you pass it a non-kernel virtual address.
  * */
+/**
+ * @brief 输入线性地址（内核空间范围的），输出物理地址
+ */
 #define PADDR(kva) ({                                                   \
             uintptr_t __m_kva = (uintptr_t)(kva);                       \
             if (__m_kva < KERNBASE) {                                   \

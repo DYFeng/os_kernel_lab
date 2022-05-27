@@ -259,28 +259,58 @@ enable_paging(void) {
     lcr0(cr0);
 }
 
-//boot_map_segment - setup&enable the paging mechanism
-// parameters
-//  la:   linear address of this memory need to map (after x86 segment map)
-//  size: memory size
-//  pa:   physical address of this memory
-//  perm: permission of this memory  
+// boot_map_segment - setup&enable the paging mechanism
+//  parameters
+//   la:   linear address of this memory need to map (after x86 segment map)
+//   size: memory size
+//   pa:   physical address of this memory
+//   perm: permission of this memory
+/**
+ * @brief 同时设置页目录和页表项，令到线性地址 la ~ la+size 可以页映射到 物理地址 pa ~ pa+size
+ * 而且这个映射是连续顺序的
+ * @param pgdir 页目录基地址
+ * @param la 线性地址
+ * @param size 要多大的范围
+ * @param pa 物理地址
+ * @param perm 页表项的权限
+ */
 static void
 boot_map_segment(pde_t *pgdir, uintptr_t la, size_t size, uintptr_t pa, uint32_t perm) {
+    // 先确定线性地址la可以通过页映射到物理地址pa
+    // 他们在页/幀内的偏移量必须相等
     assert(PGOFF(la) == PGOFF(pa));
+    // --------------
+    // --------------
+    //
+    //  la
+    //     |
+    //    PGOFF(la) 页内偏移量
+    //     |
+    // --------------
+
+    // la ~ la+size 占了n页
     size_t n = ROUNDUP(size + PGOFF(la), PGSIZE) / PGSIZE;
+    // 线性地址la所在页的基址
     la = ROUNDDOWN(la, PGSIZE);
+    // 物理地址pa所在幀的基址
     pa = ROUNDDOWN(pa, PGSIZE);
-    for (; n > 0; n --, la += PGSIZE, pa += PGSIZE) {
+
+    // 遍历 la ~ la+size 这n页的页基址
+    for (; n > 0; n--, la += PGSIZE, pa += PGSIZE) {
+        // 现在变量la是每页的页基址
         pte_t *ptep = get_pte(pgdir, la, 1);
         assert(ptep != NULL);
         *ptep = pa | PTE_P | perm;
     }
 }
 
-//boot_alloc_page - allocate one page using pmm->alloc_pages(1) 
-// return value: the kernel virtual address of this allocated page
-//note: this function is used to get the memory for PDT(Page Directory Table)&PT(Page Table)
+// boot_alloc_page - allocate one page using pmm->alloc_pages(1)
+//  return value: the kernel virtual address of this allocated page
+// note: this function is used to get the memory for PDT(Page Directory Table)&PT(Page Table)
+/**
+ * @brief 申请一页内存
+ * @return 内存的线性地址
+ */
 static void *
 boot_alloc_page(void) {
     struct Page *p = alloc_page();
@@ -305,7 +335,8 @@ pmm_init(void) {
     // detect physical memory space, reserve already used memory,
     // then use pmm->init_memmap to create free page list
     // 2. 建立空闲的page链表，这样就可以分配以页（4KB）为单位的空闲内存了
-    // 他把整个可用的物理内存的幀都建立了对应的页
+    // 他把整个可用的物理内存的幀一次性都建立了对应的页Page
+    // 注意，这里并不是建立页表项（给CPU看），只是给操作系统自己记账内存用的而已
     page_init();
 
     //use pmm->check to verify the correctness of the alloc/free function in a pmm
@@ -313,8 +344,11 @@ pmm_init(void) {
     check_alloc_page();
 
     // create boot_pgdir, an initial page directory(Page Directory Table, PDT)
+    // 申请一页空间，作为临时页目录
     boot_pgdir = boot_alloc_page();
+    // 一页空间是4K
     memset(boot_pgdir, 0, PGSIZE);
+    // 把临时页目录的物理地址存起来，后面告诉CPU的CR3寄存器，这样子CPU就知道你的页目录在哪了
     boot_cr3 = PADDR(boot_pgdir);
 
     check_pgdir();
@@ -323,6 +357,9 @@ pmm_init(void) {
 
     // recursively insert boot_pgdir in itself
     // to form a virtual page table at virtual address VPT
+    // VPT=0xFAC00000 = 1111101011 0... = 0x3EB 0...
+    // PDX(VPT)=0x3EB=1003
+    // 把页目录的第1003项，写入页目录的地址
     boot_pgdir[PDX(VPT)] = PADDR(boot_pgdir) | PTE_P | PTE_W;
 
     // map all physical memory to linear memory with base linear addr KERNBASE
@@ -388,16 +425,36 @@ get_pte(pde_t *pgdir, uintptr_t la, bool create) {
      *   PTE_U           0x004                   // page table/directory entry flags bit : User can access
      */
 #if 0
-    pde_t *pdep = NULL;   // (1) find page directory entry
-    if (0) {              // (2) check if entry is not present
-                          // (3) check if creating is needed, then alloc page for page table
-                          // CAUTION: this page is used for page table, not for common data page
-                          // (4) set page reference
-        uintptr_t pa = 0; // (5) get linear address of page
-                          // (6) clear page content using memset
-                          // (7) set page directory entry's permission
+    // (1) find page directory entry
+    pde_t *pdep = pgdir + PDX(la);
+
+    // (2) check if entry is not present
+    // Page Directory是一开始就准备好的，但Page Table不是，有可能还没申请内存，所以要检查PDE有没有指向Page
+    // Table（是否Present）
+    if (!(*pdep & PTE_P)) {
+        // (3) check if creating is needed, then alloc page for page table
+        // CAUTION: this page is used for page table, not for common data page
+        // 如果PDE还没指向一个Page Table，然后你还不想我建一个Page Table，那我也只能放弃了
+        if (!create) return NULL;
+
+        struct Page *page = alloc_page();
+        // 没空间了，想建也建不了，放弃了
+        if (!page) return NULL;
+
+        // (4) set page reference
+        set_page_ref(page, 1);
+        // (5) get linear address of page
+        uintptr_t pa = page2pa(page);
+
+        // (6) clear page content using memset
+        // Page Table是需要清空的，因为CPU会拿里面的数据做映射
+        memset(KADDR(pa), 0, PTSIZE);
+
+        // (7) set page directory entry's permission
+        *pdep = (pa & ~0x0FFF) | PTE_U | PTE_W | PTE_P;
     }
-    return NULL;          // (8) return page table entry
+    // (8) return page table entry
+    return (pte_t *)(*pdep) + PTX(la);
 #endif
 }
 
